@@ -1,0 +1,62 @@
+**E-commerce Website with WhatsApp Checkout & Admin Dashboard**  
+
+---
+
+### **Project Overview**  
+I need a simple **e-commerce website** where customers can:  
+- Browse **products** and **categories**.  
+- **Add multiple products to a cart**.  
+- Place orders via **WhatsApp** instead of using a payment system.  
+
+I also need an **Admin Dashboard** where I can:  
+- **Add, edit, and delete** products.  
+- Upload **product images**.  
+- Organize products into **categories & tags** (e.g., New, Low Stock, Trending).  
+- Track **orders in real-time** when a WhatsApp order is placed.  
+- **Auto-update stock** when an item is sold.  
+
+---
+
+### **Features Breakdown**  
+
+#### **1️⃣ Customer Side (Public Website)**  
+✅ **Home Page** → Shows all products in categories.  
+✅ **Product Page** → Displays product details, images, price, and stock.  
+✅ **Shopping Cart** → Customers can add multiple products.  
+✅ **WhatsApp Checkout** → Clicking "Order on WhatsApp" will:  
+   - Send a **WhatsApp message** with selected products.  
+   - Create an **order ticket in the admin panel**.  
+   - **Auto-update stock quantity** in real-time.  
+
+---
+
+#### **2️⃣ Admin Dashboard (For Managing Products & Orders)**  
+✅ **Login System** → Only I can access it.  
+✅ **Product Management** → Add/Edit/Delete products with images.  
+✅ **Category Management** → Create custom **categories with URLs**.  
+✅ **Order Tracking** → When a customer places an order:  
+   - An **Order Ticket** is created.  
+   - It includes **products, quantity, and WhatsApp Order ID**.  
+   - I can **update order status** (New, Processing, Completed).  
+✅ **Stock Updates** → Product stock reduces **automatically** when an order is placed.  
+
+---
+
+### **Free Services to Use**
+| Feature | Free Service |
+|------------|------------|
+| **Website Hosting** | Vercel (Next.js) / Netlify (React) |
+| **Database (Products, Orders, Stock)** | Supabase (PostgreSQL) |
+| **Image Storage** | Supabase Storage (Free 5GB) / Cloudinary (Free 10GB) |
+| **Admin Authentication** | Supabase Auth |
+| **WhatsApp Order System** | WhatsApp API (`wa.me/?text=`) |
+| **Stock Updates** | Supabase Realtime Database |
+
+---
+
+### **How It Works**  
+1. Customers **browse products** and **add items to the cart**.  
+2. They **click "Order on WhatsApp"** → A message is sent to me.  
+3. The order is also **saved in the admin dashboard** as a ticket.  
+4. The **product stock updates automatically** on the website.  
+5. I can **update the order status** in the admin panel.  
