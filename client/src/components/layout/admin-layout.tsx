@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/use-auth";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard,
   Tag,
@@ -67,18 +67,16 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               {menuItems.map((item) => {
                 const isActive = location === item.href;
                 return (
-                  <Button
-                    key={item.href}
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={cn(
-                      "justify-start gap-2",
-                      isActive && "bg-secondary"
-                    )}
-                    onClick={() => navigate(item.href)}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.title}
-                  </Button>
+                  <Link key={item.href} href={item.href}>
+                    <a className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-md text-sm transition-colors",
+                      "hover:bg-accent hover:text-accent-foreground",
+                      isActive && "bg-secondary text-secondary-foreground font-medium"
+                    )}>
+                      <item.icon className="h-4 w-4" />
+                      {item.title}
+                    </a>
+                  </Link>
                 );
               })}
               <Button

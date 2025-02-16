@@ -1,3 +1,4 @@
+// pages/admin/categories.tsx
 import { AdminLayout } from "@/components/layout/admin-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,30 +13,35 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Category, insertCategorySchema } from "@shared/schema";
+import { Category, Tag, insertCategorySchema } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Badge } from "@/components/ui/badge";
 
-type CategoryFormData = z.infer<typeof insertCategorySchema>;
+type CategoryFormData = z.infer<typeof insertCategorySchema> & {
+  tags?: number[];
+};
 
 export default function AdminCategories() {
   const { toast } = useToast();
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null
+  );
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<number[]>([]);
 
   const form = useForm<CategoryFormData>({
     resolver: zodResolver(insertCategorySchema),
@@ -45,60 +51,119 @@ export default function AdminCategories() {
     },
   });
 
-  const { data: categories, isLoading } = useQuery<Category[]>({
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<
+    Category[]
+  >({
     queryKey: ["/api/categories"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/categories");
+      if (!res.ok) {
+        throw new Error("Failed to fetch categories");
+      }
+      return res.json();
+    },
   });
 
+  const { data: tags = [], isLoading: isLoadingTags } = useQuery<Tag[]>({
+    queryKey: ["/api/tags"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/tags");
+      if (!res.ok) {
+        throw new Error("Failed to fetch tags");
+      }
+      return res.json();
+    },
+  });
+
+  // Reset form
+  const resetForm = () => {
+    setSelectedCategory(null);
+    setSelectedTags([]);
+    form.reset({
+      name: "",
+      slug: "",
+    });
+  };
+
+  // Clear form on close
+  useEffect(() => {
+    if (!isFormDialogOpen) {
+      resetForm();
+    }
+  }, [isFormDialogOpen]);
+
+  // Create category
   const createMutation = useMutation({
-    mutationFn: async (data: CategoryFormData) => {
-      const res = await apiRequest("POST", "/api/categories", data);
+    mutationFn: async (payload: CategoryFormData) => {
+      // We can pass `tags: selectedTags` in the same POST body:
+      const res = await apiRequest("POST", "/api/categories", {
+        ...payload,
+        tags: selectedTags,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Error creating category");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       setIsFormDialogOpen(false);
-      form.reset();
+      resetForm();
       toast({
         title: "Success",
         description: "Category created successfully",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: String(error.message),
         variant: "destructive",
       });
     },
   });
 
+  // Update category
   const updateMutation = useMutation({
-    mutationFn: async (data: CategoryFormData & { id: number }) => {
-      const res = await apiRequest("PATCH", `/api/categories/${data.id}`, data);
+    mutationFn: async (payload: CategoryFormData & { id: number }) => {
+      const res = await apiRequest("PATCH", `/api/categories/${payload.id}`, {
+        ...payload,
+        tags: selectedTags,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Error updating category");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
       setIsFormDialogOpen(false);
-      setSelectedCategory(null);
-      form.reset();
+      resetForm();
       toast({
         title: "Success",
         description: "Category updated successfully",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: String(error.message),
         variant: "destructive",
       });
     },
   });
 
+  // Delete category
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/categories/${id}`);
+      const res = await apiRequest("DELETE", `/api/categories/${id}`);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Error deleting category");
+      }
+      return true;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
@@ -109,15 +174,16 @@ export default function AdminCategories() {
         description: "Category deleted successfully",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message,
+        description: String(error.message),
         variant: "destructive",
       });
     },
   });
 
+  // Submit
   const onSubmit = async (data: CategoryFormData) => {
     if (selectedCategory) {
       await updateMutation.mutateAsync({ ...data, id: selectedCategory.id });
@@ -126,26 +192,66 @@ export default function AdminCategories() {
     }
   };
 
-  const handleEdit = (category: Category) => {
-    setSelectedCategory(category);
+  // Edit
+  const handleEdit = async (cat: Category) => {
+    resetForm();
+    setSelectedCategory(cat);
+
+    // fetch category tags => returns array of {id, name, slug}
+    try {
+      const res = await apiRequest("GET", `/api/category-tags/${cat.id}`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch category tags");
+      }
+      const categoryTags = await res.json();
+      setSelectedTags(categoryTags.map((t: any) => t.id));
+    } catch (error) {
+      console.error("Error fetching category tags:", error);
+      setSelectedTags([]);
+    }
+
+    // set form
     form.reset({
-      name: category.name,
-      slug: category.slug,
+      name: cat.name,
+      slug: cat.slug,
     });
     setIsFormDialogOpen(true);
   };
 
-  const handleDelete = (category: Category) => {
-    setSelectedCategory(category);
+  // Delete
+  const handleDelete = (cat: Category) => {
+    setSelectedCategory(cat);
     setIsDeleteDialogOpen(true);
   };
+
+  // Toggle tag selection
+  const handleTagToggle = (tagId: number) => {
+    setSelectedTags((prev) =>
+      prev.includes(tagId)
+        ? prev.filter((id) => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
+  if (isLoadingCategories || isLoadingTags) {
+    return (
+      <AdminLayout>
+        <p>Loading...</p>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
       <div className="flex-1 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-3xl font-bold tracking-tight">Categories</h2>
-          <Button onClick={() => setIsFormDialogOpen(true)}>
+          <Button
+            onClick={() => {
+              resetForm();
+              setIsFormDialogOpen(true);
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Add Category
           </Button>
@@ -157,31 +263,41 @@ export default function AdminCategories() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Slug</TableHead>
+                <TableHead>Tags</TableHead>
                 <TableHead>Created At</TableHead>
-                <TableHead className="w-[100px]">Actions</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories?.map((category) => (
-                <TableRow key={category.id}>
-                  <TableCell>{category.name}</TableCell>
-                  <TableCell>{category.slug}</TableCell>
+              {categories.map((cat) => (
+                <TableRow key={cat.id}>
+                  <TableCell>{cat.name}</TableCell>
+                  <TableCell>{cat.slug}</TableCell>
                   <TableCell>
-                    {new Date(category.createdAt).toLocaleDateString()}
+                    <div className="flex flex-wrap gap-1">
+                      {cat.tags?.map((tag) => (
+                        <Badge key={tag.id} variant="secondary">
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(cat.createdAt).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <div className="flex space-x-2">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleEdit(category)}
+                        onClick={() => handleEdit(cat)}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(category)}
+                        onClick={() => handleDelete(cat)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -189,9 +305,9 @@ export default function AdminCategories() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!isLoading && (!categories || categories.length === 0) && (
+              {!isLoadingCategories && categories.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center">
+                  <TableCell colSpan={5} className="text-center">
                     No categories found
                   </TableCell>
                 </TableRow>
@@ -200,15 +316,21 @@ export default function AdminCategories() {
           </Table>
         </div>
 
-        {/* Create/Edit Category Dialog */}
-        <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
+        {/* Form Dialog */}
+        <Dialog
+          open={isFormDialogOpen}
+          onOpenChange={(open) => {
+            if (!open) resetForm();
+            setIsFormDialogOpen(open);
+          }}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
                 {selectedCategory ? "Edit Category" : "Add Category"}
               </DialogTitle>
               <DialogDescription>
-                Enter the details for the category below
+                Enter the details for the category
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -216,7 +338,7 @@ export default function AdminCategories() {
                 <Label htmlFor="name">Name</Label>
                 <Input id="name" {...form.register("name")} />
                 {form.formState.errors.name && (
-                  <p className="text-sm text-red-500">
+                  <p className="text-red-500 text-sm">
                     {form.formState.errors.name.message}
                   </p>
                 )}
@@ -225,25 +347,46 @@ export default function AdminCategories() {
                 <Label htmlFor="slug">Slug</Label>
                 <Input id="slug" {...form.register("slug")} />
                 {form.formState.errors.slug && (
-                  <p className="text-sm text-red-500">
+                  <p className="text-red-500 text-sm">
                     {form.formState.errors.slug.message}
                   </p>
                 )}
               </div>
+
+              {/* Tag Selection */}
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Badge
+                      key={tag.id}
+                      variant={
+                        selectedTags.includes(tag.id) ? "default" : "outline"
+                      }
+                      className="cursor-pointer"
+                      onClick={() => handleTagToggle(tag.id)}
+                    >
+                      {tag.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
               <DialogFooter>
                 <Button
-                  type="button"
                   variant="ghost"
-                  onClick={() => {
-                    setIsFormDialogOpen(false);
-                    setSelectedCategory(null);
-                    form.reset();
-                  }}
+                  type="button"
+                  onClick={() => setIsFormDialogOpen(false)}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? "Saving..." : "Save"}
+                <Button
+                  type="submit"
+                  disabled={
+                    createMutation.isLoading || updateMutation.isLoading
+                  }
+                >
+                  {selectedCategory ? "Update" : "Create"}
                 </Button>
               </DialogFooter>
             </form>
@@ -263,7 +406,6 @@ export default function AdminCategories() {
             </DialogHeader>
             <DialogFooter>
               <Button
-                type="button"
                 variant="ghost"
                 onClick={() => {
                   setIsDeleteDialogOpen(false);
@@ -273,16 +415,15 @@ export default function AdminCategories() {
                 Cancel
               </Button>
               <Button
-                type="button"
                 variant="destructive"
-                disabled={deleteMutation.isPending}
+                disabled={deleteMutation.isLoading}
                 onClick={() => {
                   if (selectedCategory) {
                     deleteMutation.mutate(selectedCategory.id);
                   }
                 }}
               >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                {deleteMutation.isLoading ? "Deleting..." : "Delete"}
               </Button>
             </DialogFooter>
           </DialogContent>
